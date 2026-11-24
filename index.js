@@ -5,6 +5,7 @@ import { config } from "./config.js";
 import { connectToMongoDB, ensureIndexes } from "./db.js";
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
+import studentDetailsRoutes from "./routes/studentDetails.js";
 
 // Keep this export available from the entry point for existing callers.
 export { connectToMongoDB } from "./db.js";
@@ -21,6 +22,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/student-details", studentDetailsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "NotFound", message: "Route not found." });

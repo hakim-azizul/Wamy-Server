@@ -35,14 +35,14 @@ router.post("/supervisors", verifyUser, isManager, async (req, res) => {
   if (errors.length) return respondWithValidationErrors(res, errors);
 
   try {
-    const user = await createUser({ ...value, role: "supervisor", createdBy: req.userId });
+    const user = await createUser({ ...value, role: "supervisor", createdBy: req.user.name });
     return res.status(201).json({ user });
   } catch (err) {
     return handleServerError(res, "Create supervisor", err);
   }
 });
 
-/** Supervisor only: create a student with the 13-field profile (score is server-set). */
+/** Supervisor only: create a lightweight student account (score is server-set). */
 router.post("/students", verifyUser, isSupervisor, async (req, res) => {
   const { value, errors } = validateStudent(req.body);
   if (errors.length) return respondWithValidationErrors(res, errors);
@@ -51,8 +51,7 @@ router.post("/students", verifyUser, isSupervisor, async (req, res) => {
     const user = await createUser({
       ...value,
       role: "student",
-      createdBy: req.userId,
-      studentProfile: value.studentProfile,
+      createdBy: req.user.name,
     });
     return res.status(201).json({ user });
   } catch (err) {
@@ -78,7 +77,7 @@ router.get("/me", verifyUser, (req, res) => {
   return res.json({ user: req.user });
 });
 
-/** Manager only: authorized edit of the student's review score (field #13). */
+/** Manager only: authorized edit of the student's top-level review score. */
 router.patch("/:id/score", verifyUser, isManager, async (req, res) => {
   if (!isValidObjectId(req.params.id)) {
     return res.status(400).json({ error: "ValidationError", message: "Invalid student id." });

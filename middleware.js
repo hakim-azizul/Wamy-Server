@@ -59,3 +59,4 @@ function requireRole(role) {
 
 export const isManager = requireRole("manager");
 export const isSupervisor = requireRole("supervisor");
+export const isStudent = requireRole("student");

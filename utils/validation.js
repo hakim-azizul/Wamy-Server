@@ -5,10 +5,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const normalizeEmail = (value) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
-export const normalizePassport = (value) =>
-  typeof value === "string" ? value.trim().toUpperCase() : "";
-
-function readString(body, field, errors, { required = true } = {}) {
+export function readString(body, field, errors, { required = true } = {}) {
   const value = body?.[field];
   if (typeof value !== "string" || value.trim() === "") {
     if (required) errors.push(`${field} is required and must be a non-empty string.`);
@@ -17,7 +14,7 @@ function readString(body, field, errors, { required = true } = {}) {
   return value.trim();
 }
 
-function readDate(body, field, errors) {
+export function readDate(body, field, errors) {
   const value = body?.[field];
   if (value === undefined || value === null || value === "") {
     errors.push(`${field} is required.`);
@@ -56,12 +53,10 @@ export function validateSupervisor(body) {
   return { value: { name, email, password, phone }, errors };
 }
 
-/** Supervisor -> student. Includes all 12 input profile fields (score is server-set). */
+/** Supervisor -> student. Lightweight account only; the student fills in details later. */
 export function validateStudent(body) {
   const errors = [];
-  const profile = body?.studentProfile ?? {};
-
-  const name = readString(profile, "name", errors);
+  const name = readString(body, "name", errors);
   const email = normalizeEmail(body?.email);
   const password = readString(body, "password", errors);
   const phone = readString(body, "phone", errors, { required: false }) || null;
@@ -69,26 +64,7 @@ export function validateStudent(body) {
   if (!EMAIL_PATTERN.test(email)) errors.push("A valid email is required.");
   if (password && password.length < 8) errors.push("Password must be at least 8 characters.");
 
-  const studentProfile = {
-    name,
-    fathersName: readString(profile, "fathersName", errors),
-    passportNumber: normalizePassport(profile.passportNumber),
-    passportExpiryDate: readDate(profile, "passportExpiryDate", errors),
-    residencePermitExpiryDate: readDate(profile, "residencePermitExpiryDate", errors),
-    countryOrNationality: readString(profile, "countryOrNationality", errors),
-    university: readString(profile, "university", errors),
-    faculty: readString(profile, "faculty", errors),
-    department: readString(profile, "department", errors),
-    academicYear: readString(profile, "academicYear", errors),
-    apartmentNumber: readString(profile, "apartmentNumber", errors),
-    roomNumber: readString(profile, "roomNumber", errors),
-  };
-
-  if (!studentProfile.passportNumber) {
-    errors.push("studentProfile.passportNumber is required.");
-  }
-
-  return { value: { name, email, password, phone, studentProfile }, errors };
+  return { value: { name, email, password, phone }, errors };
 }
 
 export function validateScore(body) {
