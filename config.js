@@ -8,11 +8,23 @@ function numberFromEnv(value, fallback) {
 
 export const config = {
   dbUri: process.env.DB_URI,
-  dbName: process.env.DB_NAME || undefined,
+  // Must match the database used by Better Auth in wamy-client/src/lib/auth.ts.
+  dbName: process.env.DB_NAME || "WamyDorm",
   port: numberFromEnv(process.env.PORT, 5000),
-  // Starting review score for every newly created student (field #13).
   initialReviewScore: numberFromEnv(process.env.INITIAL_REVIEW_SCORE, 100),
-  // Used to sign the lightweight bearer tokens issued at login.
   authSecret: process.env.AUTH_SECRET || "wamy-dev-secret-change-me",
-  clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+  // Comma-separated list is supported, plus the two local loopback hosts by default.
+  clientOrigins: [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    ...(process.env.CLIENT_ORIGIN || "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  ],
+  // Better Auth handler on the client (used for native sign-up of managed accounts).
+  clientAuthUrl:
+    process.env.CLIENT_URL ||
+    process.env.NEXT_PUBLIC_BETTER_AUTH_URL ||
+    "http://localhost:3000",
 };

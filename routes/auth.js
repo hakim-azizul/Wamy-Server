@@ -1,13 +1,21 @@
 import { Router } from "express";
+import { verifyPassword } from "better-auth/crypto";
 import { verifyUser } from "../middleware.js";
-import { verifyPassword } from "../utils/password.js";
 import { issueToken } from "../utils/token.js";
 import { validateLogin } from "../utils/validation.js";
-import { findUserByEmail, toSafeUser } from "../services/users.js";
+import {
+  findCredentialByUserId,
+  findUserByEmail,
+  toSafeUser,
+} from "../services/users.js";
 
 const router = Router();
 
-/** Public: email + password login. No public registration endpoint exists. */
+/**
+ * Public login. Credentials are verified with Better Auth's own password
+ * verifier against its `account` collection, so hashes created by Better Auth
+ * (e.g. by the seed script) always match.
+ */
 router.post("/login", async (req, res) => {
   try {
     const { value, errors } = validateLogin(req.body);
@@ -16,7 +24,20 @@ router.post("/login", async (req, res) => {
     }
 
     const doc = await findUserByEmail(value.email);
-    if (!doc || !verifyPassword(value.password, doc.password)) {
+    if (!doc) {
+      return res.status(401).json({ error: "Unauthorized", message: "Invalid email or password." });
+    }
+
+    const credential = await findCredentialByUserId(doc._id);
+    if (!credential?.password) {
+      return res.status(401).json({ error: "Unauthorized", message: "Invalid email or password." });
+    }
+
+    const isValid = await verifyPassword({
+      hash: credential.password,
+      password: value.password,
+    });
+    if (!isValid) {
       return res.status(401).json({ error: "Unauthorized", message: "Invalid email or password." });
     }
     if (doc.status !== "active") {

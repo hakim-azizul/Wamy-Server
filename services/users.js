@@ -1,10 +1,9 @@
 import { ObjectId } from "mongodb";
+import { accountCollection, userCollection } from "../db.js";
 import { config } from "../config.js";
-import { usersCollection } from "../db.js";
-import { hashPassword } from "../utils/password.js";
 import { normalizeEmail } from "../utils/validation.js";
 
-/** Strip the password hash before any response. createdBy is the creator's NAME. */
+/** Strip nothing sensitive: Better Auth user docs never contain a password. */
 export function toSafeUser(doc) {
   if (!doc) return null;
   const { password: _password, ...rest } = doc;
@@ -16,50 +15,79 @@ export function toSafeUser(doc) {
 }
 
 export async function findUserByEmail(email) {
-  return usersCollection().findOne({ email: normalizeEmail(email) });
+  return userCollection().findOne({ email: normalizeEmail(email) });
 }
 
 export async function findUserById(id) {
   if (!ObjectId.isValid(id)) return null;
-  return usersCollection().findOne({ _id: new ObjectId(id) });
+  return userCollection().findOne({ _id: new ObjectId(id) });
+}
+
+/** Better Auth credential record containing the password hash for a user. */
+export async function findCredentialByUserId(userId) {
+  const id = typeof userId === "string" ? new ObjectId(userId) : userId;
+  if (!ObjectId.isValid(id)) return null;
+  return accountCollection().findOne({ userId: id, providerId: "credential" });
 }
 
 /**
- * Create a lightweight user account in the single `users` collection.
- * Role is always supplied by the route (never trusted from the request body).
- * `score` is added ONLY to student accounts; detailed profiles live in the
- * five separate student detail collections.
+ * Create an account through Better Auth's native sign-up flow so the `user`
+ * document and `account` credential record match Better Auth's exact hash and
+ * id format. Then add the app-specific fields to the same `user` document.
  */
+async function signUpWithBetterAuth({ name, email, password }) {
+  const response = await fetch(`${config.clientAuthUrl}/api/auth/sign-up/email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: config.clientAuthUrl,
+    },
+    body: JSON.stringify({ name, email, password }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.user?.id) {
+    const error = new Error(
+      data?.message || `Better Auth sign-up failed (${response.status})`,
+    );
+    if (response.status === 409) error.code = 11000; // maps to HTTP 409 in routes
+    throw error;
+  }
+  return data.user;
+}
+
 export async function createUser({ name, email, password, role, phone = null, createdBy = null }) {
-  const now = new Date();
-  const doc = {
+  const authUser = await signUpWithBetterAuth({
     name,
     email: normalizeEmail(email),
-    password: hashPassword(password),
+    password,
+  });
+
+  const patch = {
     role,
     status: "active",
     phone: phone || null,
     createdBy: createdBy || null,
-    createdAt: now,
-    updatedAt: now,
+    updatedAt: new Date(),
   };
+  if (role === "student") patch.score = config.initialReviewScore;
 
-  if (role === "student") {
-    doc.score = config.initialReviewScore;
-  }
-
-  const result = await usersCollection().insertOne(doc);
-  return toSafeUser({ ...doc, _id: result.insertedId });
+  const doc = await userCollection().findOneAndUpdate(
+    { _id: new ObjectId(authUser.id) },
+    { $set: patch },
+    { returnDocument: "after" },
+  );
+  return toSafeUser(doc);
 }
 
 export async function listUsers(filter = {}) {
-  const docs = await usersCollection().find(filter).sort({ createdAt: -1 }).toArray();
+  const docs = await userCollection().find(filter).sort({ createdAt: -1 }).toArray();
   return docs.map(toSafeUser);
 }
 
 export async function updateStudentScore(id, score) {
   if (!ObjectId.isValid(id)) return null;
-  const result = await usersCollection().findOneAndUpdate(
+  const result = await userCollection().findOneAndUpdate(
     { _id: new ObjectId(id), role: "student" },
     { $set: { score, updatedAt: new Date() } },
     { returnDocument: "after" },

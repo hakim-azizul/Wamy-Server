@@ -39,8 +39,14 @@ export function getDb() {
   return client.db(config.dbName);
 }
 
-export function usersCollection() {
-  return getDb().collection("users");
+/** Better Auth's SINGULAR user collection is the only account source of truth. */
+export function userCollection() {
+  return getDb().collection("user");
+}
+
+/** Better Auth stores email/password credentials here (providerId: "credential"). */
+export function accountCollection() {
+  return getDb().collection("account");
 }
 
 export function studentDetailsCollection(section) {
@@ -49,10 +55,12 @@ export function studentDetailsCollection(section) {
   return getDb().collection(name);
 }
 
-/** Enforce the invariants: unique email, and one detail document per student per section. */
+/**
+ * Only maintain indexes for OUR modular student collections.
+ * Better Auth owns the indexes for `user` / `account` / `session` — never create
+ * a legacy plural `users` collection here.
+ */
 export async function ensureIndexes() {
-  await usersCollection().createIndex({ email: 1 }, { unique: true, name: "unique_email" });
-
   await Promise.all(
     SECTION_KEYS.map((section) =>
       studentDetailsCollection(section).createIndex(

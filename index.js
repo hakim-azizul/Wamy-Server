@@ -1,6 +1,8 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+
+const allowedOrigins = new Set(config.clientOrigins);
 import { config } from "./config.js";
 import { connectToMongoDB, ensureIndexes } from "./db.js";
 import authRoutes from "./routes/auth.js";
@@ -14,7 +16,21 @@ const app = express();
 
 // middleware
 app.use(express.json());
-app.use(cors({ origin: config.clientOrigin, credentials: true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Non-browser clients (curl, server-to-server) send no Origin header.
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
+    credentials: true,
+  }),
+);
+// Chrome Private Network Access preflight (page on a non-local origin -> localhost API).
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Private-Network", "true");
+  next();
+});
 
 app.get("/", (req, res) => {
   res.send({ message: "WamyDorm Server is live" });
@@ -29,8 +45,11 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err?.message?.includes("not allowed by CORS")) {
+    return res.status(403).json({ error: "Forbidden", message: err.message });
+  }
   console.error("Unhandled server error:", err);
-  res.status(500).json({ error: "InternalServerError", message: "Something went wrong." });
+  return res.status(500).json({ error: "InternalServerError", message: "Something went wrong." });
 });
 
 await connectToMongoDB();
