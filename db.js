@@ -54,6 +54,11 @@ export function sessionCollection() {
   return getDb().collection("session");
 }
 
+/** Single collection holding every score change (increases and decreases). */
+export function scoreTransactionsCollection() {
+  return getDb().collection("score_transactions");
+}
+
 export function studentDetailsCollection(section) {
   const name = STUDENT_DETAIL_COLLECTIONS[section];
   if (!name) throw new Error(`Unknown student detail section: ${section}`);
@@ -66,14 +71,18 @@ export function studentDetailsCollection(section) {
  * a legacy plural `users` collection here.
  */
 export async function ensureIndexes() {
-  await Promise.all(
-    SECTION_KEYS.map((section) =>
+  await Promise.all([
+    ...SECTION_KEYS.map((section) =>
       studentDetailsCollection(section).createIndex(
         { userId: 1 },
         { unique: true, name: `unique_userId_${section}` },
       ),
     ),
-  );
+    scoreTransactionsCollection().createIndex(
+      { studentUserId: 1, createdAt: -1 },
+      { name: "student_score_history" },
+    ),
+  ]);
 }
 
 export async function closeMongoDB() {

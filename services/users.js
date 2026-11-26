@@ -8,6 +8,7 @@ import {
 } from "../db.js";
 import { config } from "../config.js";
 import { normalizeEmail } from "../utils/validation.js";
+import { deleteScoreTransactionsForStudent } from "./scores.js";
 
 /** Strip nothing sensitive: Better Auth user docs never contain a password. */
 export function toSafeUser(doc) {
@@ -134,11 +135,12 @@ export async function deleteUserCascade(id, role) {
   ]);
 
   if (role === "student") {
-    await Promise.all(
-      SECTION_KEYS.map((section) =>
+    await Promise.all([
+      ...SECTION_KEYS.map((section) =>
         studentDetailsCollection(section).deleteMany({ userId: objectId }),
       ),
-    );
+      deleteScoreTransactionsForStudent(id),
+    ]);
   }
 
   return toSafeUser(doc);
