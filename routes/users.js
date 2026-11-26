@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isManager, isSupervisor, verifyUser } from "../middleware.js";
 import {
   createUser,
+  deleteUserCascade,
   findUserById,
   listUsers,
   updateStudentScore,
@@ -106,6 +107,54 @@ router.patch("/:id/score", verifyUser, isManager, async (req, res) => {
     return res.json({ user });
   } catch (err) {
     return handleServerError(res, "Update score", err);
+  }
+});
+
+/**
+ * Role-authorized deletion with cascading cleanup.
+ * manager: may delete supervisor/student (never manager, never self).
+ * supervisor: may delete student only (never supervisor/manager, never self).
+ * student: forbidden from deleting anyone.
+ */
+router.delete("/:id", verifyUser, async (req, res) => {
+  const { id } = req.params;
+  const actor = req.user;
+
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ error: "ValidationError", message: "Invalid user id." });
+  }
+  if (actor.role === "student") {
+    return res.status(403).json({ error: "Forbidden", message: "Students cannot delete users." });
+  }
+  if (id === actor._id) {
+    return res.status(403).json({ error: "Forbidden", message: "You cannot delete your own account." });
+  }
+
+  try {
+    const target = await findUserById(id);
+    if (!target) {
+      return res.status(404).json({ error: "NotFound", message: "User not found." });
+    }
+
+    const allowed =
+      actor.role === "manager"
+        ? target.role === "supervisor" || target.role === "student"
+        : target.role === "student"; // supervisor
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: "Forbidden",
+        message: `A ${actor.role} cannot delete a ${target.role} account.`,
+      });
+    }
+
+    const deleted = await deleteUserCascade(id, target.role);
+    return res.json({
+      message: `Deleted ${target.role} account.`,
+      user: deleted,
+    });
+  } catch (err) {
+    return handleServerError(res, "Delete user", err);
   }
 });
 

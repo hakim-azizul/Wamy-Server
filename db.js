@@ -49,6 +49,11 @@ export function accountCollection() {
   return getDb().collection("account");
 }
 
+/** Better Auth sessions, keyed by userId. */
+export function sessionCollection() {
+  return getDb().collection("session");
+}
+
 export function studentDetailsCollection(section) {
   const name = STUDENT_DETAIL_COLLECTIONS[section];
   if (!name) throw new Error(`Unknown student detail section: ${section}`);

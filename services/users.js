@@ -1,5 +1,11 @@
 import { ObjectId } from "mongodb";
-import { accountCollection, userCollection } from "../db.js";
+import {
+  accountCollection,
+  SECTION_KEYS,
+  sessionCollection,
+  studentDetailsCollection,
+  userCollection,
+} from "../db.js";
 import { config } from "../config.js";
 import { normalizeEmail } from "../utils/validation.js";
 
@@ -107,4 +113,33 @@ export async function updateStudentScore(id, score) {
     { returnDocument: "after" },
   );
   return toSafeUser(result);
+}
+
+/**
+ * Delete a user and every record tied to them:
+ * - the Better Auth `user` document,
+ * - all `account` and `session` records for that userId,
+ * - all 5 modular student detail documents when the user was a student.
+ * Returns the deleted safe user, or null when the id was invalid/missing.
+ */
+export async function deleteUserCascade(id, role) {
+  if (!ObjectId.isValid(id)) return null;
+  const objectId = new ObjectId(id);
+  const doc = await userCollection().findOneAndDelete({ _id: objectId });
+  if (!doc) return null;
+
+  await Promise.all([
+    accountCollection().deleteMany({ userId: objectId }),
+    sessionCollection().deleteMany({ userId: objectId }),
+  ]);
+
+  if (role === "student") {
+    await Promise.all(
+      SECTION_KEYS.map((section) =>
+        studentDetailsCollection(section).deleteMany({ userId: objectId }),
+      ),
+    );
+  }
+
+  return toSafeUser(doc);
 }
