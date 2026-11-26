@@ -1,54 +1,18 @@
 import { Router } from "express";
-import { verifyPassword } from "better-auth/crypto";
 import { verifyUser } from "../middleware.js";
-import { issueToken } from "../utils/token.js";
-import { validateLogin } from "../utils/validation.js";
-import {
-  findCredentialByUserId,
-  findUserByEmail,
-  toSafeUser,
-} from "../services/users.js";
 
 const router = Router();
 
 /**
- * Public login. Credentials are verified with Better Auth's own password
- * verifier against its `account` collection, so hashes created by Better Auth
- * (e.g. by the seed script) always match.
+ * JWTs are issued exclusively by Better Auth on wamy-client (GET /api/auth/token)
+ * and verified here via JWKS. There is no server-side login/token issuer on
+ * wamy-server and no AUTH_SECRET involved.
  */
-router.post("/login", async (req, res) => {
-  try {
-    const { value, errors } = validateLogin(req.body);
-    if (errors.length) {
-      return res.status(400).json({ error: "ValidationError", message: errors.join(" ") });
-    }
-
-    const doc = await findUserByEmail(value.email);
-    if (!doc) {
-      return res.status(401).json({ error: "Unauthorized", message: "Invalid email or password." });
-    }
-
-    const credential = await findCredentialByUserId(doc._id);
-    if (!credential?.password) {
-      return res.status(401).json({ error: "Unauthorized", message: "Invalid email or password." });
-    }
-
-    const isValid = await verifyPassword({
-      hash: credential.password,
-      password: value.password,
-    });
-    if (!isValid) {
-      return res.status(401).json({ error: "Unauthorized", message: "Invalid email or password." });
-    }
-    if (doc.status !== "active") {
-      return res.status(403).json({ error: "Forbidden", message: "This account is not active." });
-    }
-
-    return res.json({ token: issueToken(doc), user: toSafeUser(doc) });
-  } catch (err) {
-    console.error("Login failed:", err);
-    return res.status(500).json({ error: "InternalServerError", message: "Login failed." });
-  }
+router.post("/login", (req, res) => {
+  return res.status(410).json({
+    error: "Gone",
+    message: "Sign in through wamy-client (/api/auth/sign-in/email) and send its JWT as Authorization: Bearer <token>.",
+  });
 });
 
 router.get("/me", verifyUser, (req, res) => {

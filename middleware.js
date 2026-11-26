@@ -1,5 +1,5 @@
 import { findUserById, toSafeUser } from "./services/users.js";
-import { verifyToken } from "./utils/token.js";
+import { verifyToken } from "./utils/tokens.js";
 
 function getBearerToken(req) {
   const header = req.get("authorization");
@@ -12,14 +12,13 @@ function getBearerToken(req) {
 }
 
 /**
- * Authenticate the request. Token verification lives in utils/token.js so a
- * real JWT verifier can be plugged in here later without changing any route.
- * Sets req.userId and req.user (safe user, password removed).
+ * Authenticate the request with a Better Auth JWT verified via JWKS.
+ * Sets req.claims (verified JWT payload), req.userId and req.user (safe DB user).
  */
 export async function verifyUser(req, res, next) {
   try {
     const token = getBearerToken(req);
-    const payload = token ? verifyToken(token) : null;
+    const payload = token ? await verifyToken(token) : null;
 
     if (!payload) {
       return res.status(401).json({
@@ -37,6 +36,7 @@ export async function verifyUser(req, res, next) {
     }
 
     req.userId = String(doc._id);
+    req.claims = payload.claims;
     req.user = toSafeUser(doc);
     return next();
   } catch (err) {

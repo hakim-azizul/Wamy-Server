@@ -45,12 +45,15 @@ export const config = {
   dbName: process.env.DB_NAME || "WamyDorm",
   port: numberFromEnv(process.env.PORT, 5000),
   initialReviewScore: numberFromEnv(process.env.INITIAL_REVIEW_SCORE, 100),
-  authSecret: process.env.AUTH_SECRET || "wamy-dev-secret-change-me",
   clientOrigins: [...new Set([...localOrigins, ...configuredOrigins])],
   clientAuthUrl:
     configuredClientAuthUrl?.replace(/\/$/, "") ||
     (isDevelopment ? "http://localhost:3000" : ""),
 };
+
+// Better Auth JWT plugin uses the client baseURL as the default iss/aud.
+config.jwtIssuer = config.clientAuthUrl || null;
+config.jwtAudience = config.clientAuthUrl || null;
 
 /** Non-secret startup diagnostics — helps catch Vercel env mistakes quickly. */
 export function logConfigDiagnostics() {
@@ -67,10 +70,9 @@ export function logConfigDiagnostics() {
   }
   if (isProduction && (!config.clientAuthUrl || config.clientAuthUrl.includes("localhost"))) {
     console.error(
-      "[config] CLIENT_URL / BETTER_AUTH_URL is not set to the deployed wamy-client URL — managed account creation will fail.",
+      "[config] CLIENT_URL / BETTER_AUTH_URL is not set to the deployed wamy-client URL — JWT verification and managed account creation will fail.",
     );
   }
-  if (config.authSecret === "wamy-dev-secret-change-me" && isProduction) {
-    console.error("[config] AUTH_SECRET is using the development default — set a strong secret in Vercel.");
-  }
+  console.info("[config] JWT JWKS endpoint:", config.clientAuthUrl ? `${config.clientAuthUrl}/api/auth/jwks` : "(unset)");
+  console.info("[config] AUTH_SECRET is not used on wamy-server (tokens are verified via JWKS).");
 }
