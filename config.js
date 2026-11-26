@@ -26,15 +26,19 @@ const localOrigins = isDevelopment
 const configuredOrigins = parseOrigins(
   [
     process.env.CLIENT_ORIGIN,
+    process.env.CLIENT_ORIGINS,
     process.env.CLIENT_URL,
     process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
     process.env.BETTER_AUTH_URL,
   ].join(","),
 );
 
-// These describe where server-side Better Auth sign-up calls must go (the client app).
+// These describe where server-side Better Auth sign-up calls AND the JWKS
+// endpoint live (the client app). CLIENT_ORIGIN is included as a fallback so
+// setting only that one variable is enough for both CORS and JWT verification.
 const configuredClientAuthUrl = [
   process.env.CLIENT_URL,
+  process.env.CLIENT_ORIGIN,
   process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
   process.env.BETTER_AUTH_URL,
 ].find((value) => typeof value === "string" && value.trim() !== "")?.trim();
@@ -60,17 +64,19 @@ export function logConfigDiagnostics() {
   console.info("[config] environment:", isProduction ? "production" : "development", isVercel ? "(Vercel)" : "");
   console.info("[config] database:", config.dbName, "DB_URI configured:", Boolean(config.dbUri));
   console.info("[config] allowed CORS origins:", config.clientOrigins.join(", ") || "(none)");
-  console.info("[config] client auth URL (for sign-up):", config.clientAuthUrl || "(unset)");
+  console.info("[config] client auth URL (JWKS + sign-up):", config.clientAuthUrl || "(unset)");
 
   if (!config.dbUri) {
     console.error("[config] DB_URI is missing — add it to the wamy-server Vercel project.");
   }
   if (isProduction && config.clientOrigins.length === 0) {
-    console.error("[config] No CORS origins configured — set CLIENT_ORIGIN to the deployed wamy-client URL.");
+    console.error(
+      "[config] No CORS origins configured — set CLIENT_ORIGIN=https://wamy-gray.vercel.app on the wamy-server Vercel project and redeploy.",
+    );
   }
   if (isProduction && (!config.clientAuthUrl || config.clientAuthUrl.includes("localhost"))) {
     console.error(
-      "[config] CLIENT_URL / BETTER_AUTH_URL is not set to the deployed wamy-client URL — JWT verification and managed account creation will fail.",
+      "[config] CLIENT_URL / CLIENT_ORIGIN is not set to the deployed wamy-client URL — JWT verification and managed account creation will fail.",
     );
   }
   console.info("[config] JWT JWKS endpoint:", config.clientAuthUrl ? `${config.clientAuthUrl}/api/auth/jwks` : "(unset)");

@@ -15,16 +15,25 @@ export { connectToMongoDB } from "./db.js";
 
 const app = express();
 
-app.use(express.json());
+// CORS MUST run before express.json() and every route so OPTIONS preflights get
+// a complete Access-Control-* response even for protected endpoints.
 app.use(
   cors({
     origin(origin, callback) {
       // Non-browser clients (curl, server-to-server) send no Origin header.
       if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-      console.warn(`[cors] blocked origin: ${origin}. Add it to CLIENT_ORIGIN on wamy-server and redeploy.`);
+      console.warn(
+        `[cors] blocked origin: ${origin}. Add it to CLIENT_ORIGIN on wamy-server (e.g. CLIENT_ORIGIN=${origin}) and redeploy.`,
+      );
       return callback(new Error(`Origin ${origin} is not allowed by CORS`));
     },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Access-Token"],
+    exposedHeaders: ["Content-Type"],
     credentials: true,
+    optionsSuccessStatus: 204,
+    preflightContinue: false,
+    maxAge: 600,
   }),
 );
 // Chrome Private Network Access preflight (page on a non-local origin -> localhost API).
@@ -32,6 +41,8 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Private-Network", "true");
   next();
 });
+
+app.use(express.json());
 
 app.get("/", (req, res) => {
   res.send({ message: "WamyDorm Server is live" });
