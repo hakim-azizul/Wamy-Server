@@ -9,7 +9,8 @@ import {
 const CLIENT_AUTH_URL =
   process.env.CLIENT_URL ||
   process.env.NEXT_PUBLIC_BETTER_AUTH_URL ||
-  "http://localhost:3000";
+  process.env.BETTER_AUTH_URL ||
+  (process.env.NODE_ENV === "production" ? "" : "http://localhost:3000");
 const MANAGER_NAME = "System Manager";
 const MANAGER_EMAIL = "manager@wamy.org";
 const MANAGER_PASSWORD = "Manager@1234";
@@ -28,6 +29,12 @@ async function seedManager() {
   try {
     await connectToMongoDB();
     const db = getDb();
+
+    if (!CLIENT_AUTH_URL) {
+      throw new Error(
+        "Set CLIENT_URL / BETTER_AUTH_URL on wamy-server to the deployed wamy-client URL before seeding in production.",
+      );
+    }
 
     // Better Auth is the only account store: singular `user` + `account`.
     const userCol = db.collection("user");

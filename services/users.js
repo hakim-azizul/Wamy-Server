@@ -43,6 +43,11 @@ export async function findCredentialByUserId(userId) {
  * id format. Then add the app-specific fields to the same `user` document.
  */
 async function signUpWithBetterAuth({ name, email, password }) {
+  if (!config.clientAuthUrl) {
+    throw new Error(
+      "CLIENT_URL / BETTER_AUTH_URL is not configured on wamy-server. Set it to the deployed wamy-client URL and redeploy.",
+    );
+  }
   const response = await fetch(`${config.clientAuthUrl}/api/auth/sign-up/email`, {
     method: "POST",
     headers: {

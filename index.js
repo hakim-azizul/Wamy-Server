@@ -1,27 +1,27 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { config } from "./config.js";
-
-const allowedOrigins = new Set(config.clientOrigins);
+import { config, isVercel, logConfigDiagnostics } from "./config.js";
 import { connectToMongoDB, ensureIndexes } from "./db.js";
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
 import studentDetailsRoutes from "./routes/studentDetails.js";
 import scoreRoutes from "./routes/scores.js";
 
-// Keep this export available from the entry point for existing callers.
+const allowedOrigins = new Set(config.clientOrigins);
+
+// Keep this export available from the entry point / Vercel serverless adapter.
 export { connectToMongoDB } from "./db.js";
 
 const app = express();
 
-// middleware
 app.use(express.json());
 app.use(
   cors({
     origin(origin, callback) {
       // Non-browser clients (curl, server-to-server) send no Origin header.
       if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      console.warn(`[cors] blocked origin: ${origin}. Add it to CLIENT_ORIGIN on wamy-server and redeploy.`);
       return callback(new Error(`Origin ${origin} is not allowed by CORS`));
     },
     credentials: true,
@@ -54,11 +54,16 @@ app.use((err, req, res, next) => {
   return res.status(500).json({ error: "InternalServerError", message: "Something went wrong." });
 });
 
+logConfigDiagnostics();
+
 await connectToMongoDB();
 await ensureIndexes();
 
-app.listen(config.port, () => {
-  console.log(`Server is running on port: ${config.port}`);
-});
+// Vercel serverless invokes the exported app; listening locally is unnecessary there.
+if (!isVercel) {
+  app.listen(config.port, () => {
+    console.log(`Server is running on port: ${config.port}`);
+  });
+}
 
 export default app;
