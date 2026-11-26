@@ -60,11 +60,13 @@ export function validateStudent(body) {
   const email = normalizeEmail(body?.email);
   const password = readString(body, "password", errors);
   const phone = readString(body, "phone", errors, { required: false }) || null;
+  const roomNumber = readString(body, "roomNumber", errors);
+  const flatNumber = readString(body, "flatNumber", errors);
 
   if (!EMAIL_PATTERN.test(email)) errors.push("A valid email is required.");
   if (password && password.length < 8) errors.push("Password must be at least 8 characters.");
 
-  return { value: { name, email, password, phone }, errors };
+  return { value: { name, email, password, phone, roomNumber, flatNumber }, errors };
 }
 
 export function validateScore(body) {

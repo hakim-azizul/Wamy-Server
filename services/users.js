@@ -56,7 +56,16 @@ async function signUpWithBetterAuth({ name, email, password }) {
   return data.user;
 }
 
-export async function createUser({ name, email, password, role, phone = null, createdBy = null }) {
+export async function createUser({
+  name,
+  email,
+  password,
+  role,
+  phone = null,
+  createdBy = null,
+  roomNumber = null,
+  flatNumber = null,
+}) {
   const authUser = await signUpWithBetterAuth({
     name,
     email: normalizeEmail(email),
@@ -70,7 +79,12 @@ export async function createUser({ name, email, password, role, phone = null, cr
     createdBy: createdBy || null,
     updatedAt: new Date(),
   };
-  if (role === "student") patch.score = config.initialReviewScore;
+  // student-only fields: never attach these to manager / supervisor accounts.
+  if (role === "student") {
+    patch.score = config.initialReviewScore;
+    patch.roomNumber = roomNumber;
+    patch.flatNumber = flatNumber;
+  }
 
   const doc = await userCollection().findOneAndUpdate(
     { _id: new ObjectId(authUser.id) },

@@ -104,8 +104,6 @@ function validatePersonal(body, errors) {
     nationality: readString(body, "nationality", errors),
     religion: readNullableEnum(body, "religion", errors),
     maritalStatus: readEnum(body, "maritalStatus", errors),
-    flatNo: readString(body, "flatNo", errors),
-    roomNo: readString(body, "roomNo", errors),
     detailedAddress: readString(body, "detailedAddress", errors),
     phone: readString(body, "phone", errors),
     personalEmail: readString(body, "personalEmail", errors),

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { isManager, isSupervisor, verifyUser } from "../middleware.js";
 import {
   createUser,
+  findUserById,
   listUsers,
   updateStudentScore,
 } from "../services/users.js";
@@ -81,6 +82,17 @@ router.get("/me", verifyUser, (req, res) => {
 router.patch("/:id/score", verifyUser, isManager, async (req, res) => {
   if (!isValidObjectId(req.params.id)) {
     return res.status(400).json({ error: "ValidationError", message: "Invalid student id." });
+  }
+
+  const target = await findUserById(req.params.id);
+  if (!target) {
+    return res.status(404).json({ error: "NotFound", message: "User not found." });
+  }
+  if (target.role !== "student") {
+    return res.status(400).json({
+      error: "ValidationError",
+      message: "Score applies only to student accounts.",
+    });
   }
 
   const { value, errors } = validateScore(req.body);

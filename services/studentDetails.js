@@ -31,8 +31,20 @@ export async function getStudentBundle(userId) {
   const bundle = Object.fromEntries(entries);
   const completedSections = SECTION_KEYS.filter((section) => bundle[section]?.isCompleted).length;
 
+  // Canonical account fields always come from Better Auth's `user` document.
+  const account = await findUserById(userId);
+  const user = account
+    ? {
+        name: account.name,
+        email: account.email,
+        roomNumber: account.roomNumber ?? null,
+        flatNumber: account.flatNumber ?? null,
+      }
+    : null;
+
   return {
     userId: String(userId),
+    user,
     ...bundle,
     completionSummary: { completedSections, totalSections: 5 },
   };
