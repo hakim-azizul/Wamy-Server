@@ -1,12 +1,16 @@
 import { Router } from "express";
 import { SECTION_KEYS } from "../db.js";
-import { isStudent, verifyUser } from "../middleware.js";
+import { isManagerOrSupervisor, isStudent, verifyUser } from "../middleware.js";
 import {
   getStudentBundle,
   isStudentAccount,
+  patchStudentSection,
   upsertStudentSection,
 } from "../services/studentDetails.js";
-import { validateSection } from "../utils/studentDetailsValidation.js";
+import {
+  validatePartialSection,
+  validateSection,
+} from "../utils/studentDetailsValidation.js";
 import { isValidObjectId } from "../utils/validation.js";
 
 const router = Router();
@@ -62,6 +66,33 @@ router.put("/:section", verifyUser, isStudent, async (req, res) => {
   } catch (err) {
     console.error("Save student section failed:", err);
     return res.status(500).json({ error: "InternalServerError", message: "Could not save section." });
+  }
+});
+
+/**
+ * Manager/supervisor: partial edit of one student's detail section.
+ * Body: { section: 'personal'|..., fields: { onlyChangedKeys: ... } }.
+ * Only supplied keys are written; `null` clears a value. Canonical user fields
+ * (email/roomNumber/flatNumber/name) are rejected by validation.
+ */
+router.patch("/:userId/details", verifyUser, isManagerOrSupervisor, async (req, res) => {
+  const { userId } = req.params;
+  if (!isValidObjectId(userId)) return validationError(res, ["Invalid student id."]);
+
+  if (!(await isStudentAccount(userId))) {
+    return res.status(404).json({ error: "NotFound", message: "Student account not found." });
+  }
+
+  const { section, fields } = req.body ?? {};
+  const { value, errors } = validatePartialSection(section, fields);
+  if (errors.length) return validationError(res, errors);
+
+  try {
+    const { section: saved, bundle } = await patchStudentSection(userId, section, value);
+    return res.json({ section: saved, ...bundle });
+  } catch (err) {
+    console.error("Patch student section failed:", err);
+    return res.status(500).json({ error: "InternalServerError", message: "Could not update section." });
   }
 });
 

@@ -67,3 +67,27 @@ export async function upsertStudentSection(userId, section, value) {
 
   return toClientDoc(await studentDetailsCollection(section).findOne(filter));
 }
+
+/**
+ * Partial edit by manager/supervisor: only the supplied fields are touched, so
+ * `null` clears a value and omitted fields keep their current value.
+ * Canonical user fields are rejected by validatePartialSection before this runs.
+ */
+export async function patchStudentSection(userId, section, fields) {
+  const objectId = new ObjectId(userId);
+  const filter = { userId: objectId };
+  const now = new Date();
+
+  await studentDetailsCollection(section).updateOne(
+    filter,
+    {
+      $set: { ...fields, updatedAt: now },
+      $setOnInsert: { userId: objectId, createdAt: now, isCompleted: false },
+    },
+    { upsert: true },
+  );
+
+  const saved = toClientDoc(await studentDetailsCollection(section).findOne(filter));
+  const bundle = await getStudentBundle(userId);
+  return { section: saved, bundle };
+}

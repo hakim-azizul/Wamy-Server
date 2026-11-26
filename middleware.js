@@ -60,3 +60,14 @@ function requireRole(role) {
 export const isManager = requireRole("manager");
 export const isSupervisor = requireRole("supervisor");
 export const isStudent = requireRole("student");
+
+/** Office roles that may read and edit any student's detail sections. */
+export function isManagerOrSupervisor(req, res, next) {
+  if (req.user?.role !== "manager" && req.user?.role !== "supervisor") {
+    return res.status(403).json({
+      error: "Forbidden",
+      message: "Only manager or supervisor accounts may perform this action.",
+    });
+  }
+  return next();
+}

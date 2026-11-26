@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { config } from "./config.js";
 
 const allowedOrigins = new Set(config.clientOrigins);
-import { config } from "./config.js";
 import { connectToMongoDB, ensureIndexes } from "./db.js";
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";

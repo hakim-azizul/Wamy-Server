@@ -185,3 +185,133 @@ export function validateSection(section, body) {
   const value = validator(body ?? {}, errors);
   return { value, errors };
 }
+
+/**
+ * Partial-update validation for manager/supervisor edits.
+ * Only fields actually supplied are validated, so untouched values are preserved.
+ * Canonical user fields are always rejected here — they are read-only in detail records.
+ */
+const CANONICAL_USER_FIELDS = new Set([
+  "_id", "userId", "email", "name", "roomNumber", "flatNumber",
+  "status", "role", "password", "score", "isCompleted", "createdAt", "updatedAt",
+]);
+
+const FIELD_KINDS = {
+  personal: {
+    fullNameAr: "text", fullNameEn: "text", passport: "passport",
+    passportExpiryDate: "date", iqamaExpiryDate: "date", universityStudentId: "text",
+    birthDate: "date", gender: "enum", nationality: "text", religion: "nullableEnum",
+    maritalStatus: "enum", detailedAddress: "text", phone: "text", personalEmail: "text",
+    universityEmail: "nullableText", emergencyContactName: "text", emergencyPhone: "text",
+  },
+  academic: {
+    faculty: "text", department: "text", currentLevel: "enum", currentSemester: "text",
+    studyType: "enum", enrollmentStatus: "enum", gpa: "number", completedCredits: "number",
+    remainingCredits: "number", enrollmentDate: "date", expectedGraduationDate: "date",
+    academicAdvisor: "nullableText", graduationProject: "nullableText",
+  },
+  skills: {
+    languages: "tags", computerAndProgrammingSkills: "nullableTags", softSkills: "nullableTags",
+    artisticTalents: "nullableTags", sportsTalents: "nullableTags", hobbiesAndInterests: "tags",
+    trainingCourses: "nullableTags", professionalCertificates: "nullableTags", practicalExperience: "nullableTags",
+  },
+  achievements: {
+    academicAwards: "nullableTags", competitions: "nullableTags", studentActivities: "nullableTags",
+    volunteering: "nullableTags", publicationsAndResearch: "nullableTags",
+  },
+  additional: {
+    iqScore: "nullableNumber", aptitudeTestScores: "nullableText", scholarshipStatus: "enum",
+    scholarshipProvider: "text", generalNotes: "nullableText",
+  },
+};
+
+function coercePartialValue(kind, field, value, errors) {
+  // An explicitly empty value clears the stored field.
+  if (value === "" || value === null || value === undefined) return null;
+
+  switch (kind) {
+    case "text":
+    case "nullableText":
+      if (typeof value !== "string") {
+        errors.push(`${field} must be a string.`);
+        return undefined;
+      }
+      return value.trim() || null;
+    case "passport": {
+      if (typeof value !== "string") {
+        errors.push(`${field} must be a string.`);
+        return undefined;
+      }
+      const passport = normalizePassport(value);
+      if (!passport) errors.push(`${field} cannot be empty.`);
+      return passport;
+    }
+    case "date": {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        errors.push(`${field} must be a valid date.`);
+        return undefined;
+      }
+      return date;
+    }
+    case "number":
+    case "nullableNumber": {
+      const number = typeof value === "number" ? value : Number(value);
+      if (!Number.isFinite(number)) {
+        errors.push(`${field} must be a finite number.`);
+        return undefined;
+      }
+      return number;
+    }
+    case "enum":
+    case "nullableEnum":
+      if (typeof value !== "string" || !ENUMS[field]?.includes(value)) {
+        errors.push(`${field} has an invalid value.`);
+        return undefined;
+      }
+      return value;
+    case "tags":
+    case "nullableTags": {
+      const list = Array.isArray(value)
+        ? value
+        : typeof value === "string"
+          ? value.split(/[،,]/)
+          : null;
+      if (!list) {
+        errors.push(`${field} must be an array of strings.`);
+        return undefined;
+      }
+      const cleaned = list
+        .filter((item) => typeof item === "string" && item.trim() !== "")
+        .map((item) => item.trim());
+      return cleaned.length ? cleaned : null;
+    }
+    default:
+      errors.push(`${field} has an unsupported type.`);
+      return undefined;
+  }
+}
+
+export function validatePartialSection(section, fields) {
+  const errors = [];
+  const kinds = FIELD_KINDS[section];
+  if (!kinds) return { value: null, errors: [`Unknown section '${section}'.`] };
+
+  const input = fields && typeof fields === "object" && !Array.isArray(fields) ? fields : {};
+  const value = {};
+
+  for (const [field, raw] of Object.entries(input)) {
+    if (CANONICAL_USER_FIELDS.has(field)) {
+      errors.push(`${field} belongs to the user record and cannot be edited here.`);
+      continue;
+    }
+    if (!(field in kinds)) {
+      errors.push(`${field} is not a field of the '${section}' section.`);
+      continue;
+    }
+    const coerced = coercePartialValue(kinds[field], field, raw, errors);
+    if (coerced !== undefined) value[field] = coerced;
+  }
+
+  return { value, errors };
+}
