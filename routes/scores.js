@@ -22,7 +22,11 @@ router.post("/", verifyUser, isManagerOrSupervisor, async (req, res) => {
       return res.status(404).json({ error: "NotFound", message: "Student account not found." });
     }
 
-    const result = await adjustStudentScore({ ...value, actor: req.user });
+    const result = await adjustStudentScore({
+      ...value,
+      actor: req.user,
+      includeActor: req.user.role === "manager",
+    });
     if (!result) {
       return res.status(404).json({ error: "NotFound", message: "Student account not found." });
     }
@@ -49,7 +53,11 @@ router.get("/", verifyUser, async (req, res) => {
   }
 
   try {
-    const transactions = await listScoreTransactions(built.filter);
+    const transactions = await listScoreTransactions(
+      built.filter,
+      200,
+      req.user.role === "manager",
+    );
     return res.json({ transactions, count: transactions.length });
   } catch (err) {
     console.error("List score transactions failed:", err);

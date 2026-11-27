@@ -8,13 +8,34 @@ function safeStudent(doc) {
   return { ...rest, _id: String(doc._id), createdBy: doc.createdBy ? String(doc.createdBy) : null };
 }
 
-function toClientTransaction(doc) {
+/**
+ * Only managers may receive score-modifier attribution. Every other caller
+ * gets the transaction with all actor identity fields removed entirely.
+ */
+function toClientTransaction(doc, includeActor = false) {
   if (!doc) return null;
-  return {
-    ...doc,
+
+  const base = {
     _id: String(doc._id),
     studentUserId: String(doc.studentUserId),
+    studentEmail: doc.studentEmail,
+    delta: doc.delta,
+    previousScore: doc.previousScore,
+    newScore: doc.newScore,
+    reason: doc.reason,
+    violationSeverity: doc.violationSeverity ?? null,
+    severityLabel: doc.severityLabel ?? null,
+    createdAt: doc.createdAt,
+  };
+
+  if (!includeActor) return base;
+
+  return {
+    ...base,
     actorUserId: String(doc.actorUserId),
+    actorEmail: doc.actorEmail,
+    actorName: doc.actorName ?? null,
+    actorRole: doc.actorRole,
   };
 }
 
@@ -30,6 +51,7 @@ export async function adjustStudentScore({
   violationSeverity,
   severityLabel,
   actor,
+  includeActor = false,
 }) {
   const objectId = new ObjectId(studentUserId);
 
@@ -62,19 +84,19 @@ export async function adjustStudentScore({
   const result = await scoreTransactionsCollection().insertOne(transaction);
 
   return {
-    transaction: toClientTransaction({ ...transaction, _id: result.insertedId }),
+    transaction: toClientTransaction({ ...transaction, _id: result.insertedId }, includeActor),
     student: safeStudent(student),
   };
 }
 
 /** Newest-first transactions, optionally filtered by any fields. */
-export async function listScoreTransactions(filter = {}, limit = 200) {
+export async function listScoreTransactions(filter = {}, limit = 200, includeActor = false) {
   const docs = await scoreTransactionsCollection()
     .find(filter)
     .sort({ createdAt: -1 })
     .limit(limit)
     .toArray();
-  return docs.map(toClientTransaction);
+  return docs.map((doc) => toClientTransaction(doc, includeActor));
 }
 
 /** Remove all history linked to a student (used by cascading account deletion). */
