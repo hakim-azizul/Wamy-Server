@@ -69,6 +69,17 @@ router.get("/", verifyUser, async (req, res) => {
     }
 
     const filter = req.user.role === "supervisor" ? { role: "student" } : {};
+
+    // Optional role filter from the client (كل المستخدمين sorting). Supervisors
+    // remain restricted to students even if another role is requested.
+    const requestedRole = req.query.role;
+    if (typeof requestedRole === "string" && ["manager", "supervisor", "student"].includes(requestedRole)) {
+      if (req.user.role === "supervisor" && requestedRole !== "student") {
+        return res.json({ users: [] });
+      }
+      filter.role = requestedRole;
+    }
+
     return res.json({ users: await listUsers(filter) });
   } catch (err) {
     return handleServerError(res, "List users", err);

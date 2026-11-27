@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { isValidObjectId } from "./validation.js";
 
 export const VIOLATION_SEVERITIES = Object.freeze(["simple", "moderate", "severe"]);
+export const SCORE_REASON_MAX_LENGTH = 70;
 
 const SEVERITY_LABELS = Object.freeze({
   simple: "بسيطة",
@@ -35,6 +36,9 @@ export function validateScoreChange(body) {
 
   const reason = typeof raw.reason === "string" ? raw.reason.trim() : "";
   if (!reason) errors.push("reason is required.");
+  else if (reason.length > SCORE_REASON_MAX_LENGTH) {
+    errors.push(`reason must be at most ${SCORE_REASON_MAX_LENGTH} characters.`);
+  }
 
   let violationSeverity = null;
   if (typeof delta === "number" && delta < 0) {
